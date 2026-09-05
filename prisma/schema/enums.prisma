@@ -12,3 +12,10 @@ enum UserStatus {
   SUSPENDED
   BANNED
 }
+
+enum VendorStatus {
+  PENDING
+  APPROVED
+  SUSPENDED
+  REJECTED
+}

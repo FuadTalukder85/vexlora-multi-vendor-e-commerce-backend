@@ -25,9 +25,10 @@ model User {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  sessions  Session[]
-  accounts  Account[]
-  addresses Address[]
+  sessions      Session[]
+  accounts      Account[]
+  addresses     Address[]
+  vendorProfile VendorProfile? @relation("VendorOwner")
 
   @@index([role])
   @@index([status])
@@ -64,7 +65,7 @@ model Account {
   refreshTokenExpiresAt DateTime?
   scope                 String?
   password              String?
-  // issuer                String?
+  issuer                String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 

@@ -18,7 +18,7 @@ export class QueryBuilder<T, TWhereInput = Record<string, unknown>, TInclude = R
   private skip: number = 0;
   private sortBy: string = "createdAt";
   private sortOrder: "asc" | "desc" = "desc";
-  private selectFields: Record<string, boolean> | undefined;
+  private selectFields: Record<string, boolean | Record<string, unknown>> | undefined;
 
   constructor(
     private model: PrismaModelDelegate,
@@ -268,6 +268,13 @@ export class QueryBuilder<T, TWhereInput = Record<string, unknown>, TInclude = R
       delete this.query.include;
     }
 
+    return this;
+  }
+
+  select(fields: Record<string, boolean | Record<string, unknown>>): this {
+    this.selectFields = fields;
+    this.query.select = fields;
+    delete this.query.include;
     return this;
   }
 

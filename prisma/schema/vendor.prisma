@@ -1,0 +1,43 @@
+model VendorProfile {
+  id          String  @id @default(cuid())
+  userId      String  @unique // owner
+  storeName   String
+  storeSlug   String  @unique
+  storeLogo   String?
+  storeBanner String?
+  description String?
+
+  status          VendorStatus @default(PENDING)
+  commissionRate  Decimal      @default(10) @db.Decimal(5, 2)
+  stripeAccountId String?
+
+  bankAccountName   String?
+  bankAccountNumber String?
+  bankName          String?
+
+  ratingAvg   Decimal @default(0) @db.Decimal(3, 2)
+  ratingCount Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner     User             @relation("VendorOwner", fields: [userId], references: [id], onDelete: Cascade)
+  documents VendorDocument[]
+
+  @@index([status])
+  @@map("vendor_profiles")
+}
+
+model VendorDocument {
+  id        String   @id @default(cuid())
+  vendorId  String
+  type      String // "trade_license", "nid", "tax_cert"
+  url       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  vendor VendorProfile @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId])
+  @@map("vendor_documents")
+}
