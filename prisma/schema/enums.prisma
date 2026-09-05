@@ -19,3 +19,10 @@ enum VendorStatus {
   SUSPENDED
   REJECTED
 }
+
+enum ProductStatus {
+  ACTIVE
+  DRAFT
+  OUT_OF_STOCK
+  REJECTED
+}

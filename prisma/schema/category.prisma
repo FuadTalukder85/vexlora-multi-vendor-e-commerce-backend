@@ -11,6 +11,7 @@ model Category {
 
   parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Cascade)
   children Category[] @relation("CategoryTree")
+  products Product[]
 
   @@index([parentId])
   @@map("categories")

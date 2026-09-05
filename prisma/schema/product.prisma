@@ -1,0 +1,45 @@
+model Product {
+  id            String        @id @default(cuid())
+  vendorId      String
+  title         String
+  slug          String        @unique
+  description   String?
+  categoryId    String?
+  brand         String?
+  images        String[]
+
+  basePrice     Decimal       @db.Decimal(10, 2)
+  discountPrice Decimal?      @db.Decimal(10, 2)
+  totalStock    Int           @default(0)
+
+  status      ProductStatus @default(DRAFT)
+  ratingAvg   Decimal       @default(0) @db.Decimal(3, 2)
+  ratingCount Int           @default(0)
+  tags        String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  vendor   VendorProfile    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  category Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  variants ProductVariant[]
+
+  @@index([vendorId, status])
+  @@index([categoryId])
+  @@map("products")
+}
+
+model ProductVariant {
+  id         String  @id @default(cuid())
+  productId  String
+  sku        String  @unique
+  attributes Json
+  price      Decimal @db.Decimal(10, 2)
+  stock      Int     @default(0)
+  image      String?
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@map("product_variants")
+}
