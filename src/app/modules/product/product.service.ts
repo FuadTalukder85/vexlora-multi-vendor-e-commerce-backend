@@ -39,10 +39,10 @@ const generateUniqueSlug = async (baseText: string, currentId?: string): Promise
   }
 };
 
-const createProduct = async (userId: string, userRole: Role, payload: ICreateProductPayload) => {
+const createProduct = async (user: IRequestUser, payload: ICreateProductPayload) => {
   let targetVendorId: string;
 
-  if (userRole === Role.ADMIN || userRole === Role.SUPER_ADMIN) {
+  if (user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN) {
     if (payload.vendorId) {
       const vendorExists = await prisma.vendorProfile.findUnique({
         where: { id: payload.vendorId },
@@ -53,7 +53,7 @@ const createProduct = async (userId: string, userRole: Role, payload: ICreatePro
       targetVendorId = payload.vendorId;
     } else {
       const adminVendor = await prisma.vendorProfile.findUnique({
-        where: { userId },
+        where: { userId: user.userId },
       });
       if (!adminVendor) {
         throw new AppError(status.BAD_REQUEST, "vendorId must be provided for product creation");
@@ -61,16 +61,23 @@ const createProduct = async (userId: string, userRole: Role, payload: ICreatePro
       targetVendorId = adminVendor.id;
     }
   } else {
-    // Regular vendor flow
-    const vendorProfile = await prisma.vendorProfile.findUnique({
-      where: { userId },
-    });
-
-    if (!vendorProfile) {
-      throw new AppError(status.FORBIDDEN, "You do not have a vendor profile");
+    // Regular vendor flow (owner or staff)
+    let tenantId = user.tenantId;
+    if (!tenantId) {
+      const vendorProfile = await prisma.vendorProfile.findUnique({
+        where: { userId: user.userId },
+      });
+      if (!vendorProfile) {
+        throw new AppError(status.FORBIDDEN, "You do not have a vendor profile");
+      }
+      tenantId = vendorProfile.id;
     }
 
-    if (vendorProfile.status !== VendorStatus.APPROVED) {
+    const vendorProfile = await prisma.vendorProfile.findUnique({
+      where: { id: tenantId },
+    });
+
+    if (!vendorProfile || vendorProfile.status !== VendorStatus.APPROVED) {
       throw new AppError(status.FORBIDDEN, "Your vendor store is not approved yet");
     }
 
@@ -178,20 +185,25 @@ const getAllProductsPublic = async (queryParams: IQueryParams) => {
   return await productQuery.execute();
 };
 
-const getMyVendorProducts = async (userId: string, queryParams: IQueryParams) => {
-  const vendorProfile = await prisma.vendorProfile.findUnique({
-    where: { userId },
-  });
+const getMyVendorProducts = async (user: IRequestUser, queryParams: IQueryParams) => {
+  let targetVendorId = user.tenantId;
 
-  if (!vendorProfile) {
-    throw new AppError(status.NOT_FOUND, "Vendor profile not found for this user");
+  if (!targetVendorId) {
+    const vendorProfile = await prisma.vendorProfile.findUnique({
+      where: { userId: user.userId },
+      select: { id: true },
+    });
+    if (!vendorProfile) {
+      throw new AppError(status.NOT_FOUND, "Vendor profile not found for this user");
+    }
+    targetVendorId = vendorProfile.id;
   }
 
   const productQuery = new QueryBuilder<ProductModel>(prisma.product, queryParams, {
     searchableFields: productSearchableFields,
     filterableFields: productFilterableFields,
   })
-    .where({ vendorId: vendorProfile.id })
+    .where({ vendorId: targetVendorId })
     .search()
     .filter()
     .sort()
@@ -241,7 +253,8 @@ const getProductBySlug = async (slug: string, requester?: IRequestUser) => {
     requester &&
     (requester.role === Role.ADMIN ||
       requester.role === Role.SUPER_ADMIN ||
-      product.vendor.userId === requester.userId);
+      product.vendor.userId === requester.userId ||
+      (requester.tenantId && product.vendorId === requester.tenantId));
 
   if (!isPrivileged) {
     if (product.status !== ProductStatus.ACTIVE || product.vendor.status !== VendorStatus.APPROVED) {
@@ -278,7 +291,8 @@ const getProductById = async (id: string, requester?: IRequestUser) => {
     requester &&
     (requester.role === Role.ADMIN ||
       requester.role === Role.SUPER_ADMIN ||
-      product.vendor.userId === requester.userId);
+      product.vendor.userId === requester.userId ||
+      (requester.tenantId && product.vendorId === requester.tenantId));
 
   if (!isPrivileged) {
     if (product.status !== ProductStatus.ACTIVE || product.vendor.status !== VendorStatus.APPROVED) {
@@ -289,7 +303,7 @@ const getProductById = async (id: string, requester?: IRequestUser) => {
   return product;
 };
 
-const updateProduct = async (userId: string, userRole: Role, id: string, payload: IUpdateProductPayload) => {
+const updateProduct = async (user: IRequestUser, id: string, payload: IUpdateProductPayload) => {
   const product = await prisma.product.findUnique({
     where: { id },
     include: { vendor: true },
@@ -299,7 +313,11 @@ const updateProduct = async (userId: string, userRole: Role, id: string, payload
     throw new AppError(status.NOT_FOUND, "Product not found");
   }
 
-  const isAuthorized = userRole === Role.ADMIN || userRole === Role.SUPER_ADMIN || product.vendor.userId === userId;
+  const isAuthorized =
+    user.role === Role.ADMIN ||
+    user.role === Role.SUPER_ADMIN ||
+    product.vendor.userId === user.userId ||
+    (user.tenantId && product.vendorId === user.tenantId);
 
   if (!isAuthorized) {
     throw new AppError(status.FORBIDDEN, "You do not have permission to update this product");
@@ -339,7 +357,7 @@ const updateProduct = async (userId: string, userRole: Role, id: string, payload
   return updatedProduct;
 };
 
-const deleteProduct = async (userId: string, userRole: Role, id: string) => {
+const deleteProduct = async (user: IRequestUser, id: string) => {
   const product = await prisma.product.findUnique({
     where: { id },
     include: { vendor: true },
@@ -349,7 +367,11 @@ const deleteProduct = async (userId: string, userRole: Role, id: string) => {
     throw new AppError(status.NOT_FOUND, "Product not found");
   }
 
-  const isAuthorized = userRole === Role.ADMIN || userRole === Role.SUPER_ADMIN || product.vendor.userId === userId;
+  const isAuthorized =
+    user.role === Role.ADMIN ||
+    user.role === Role.SUPER_ADMIN ||
+    product.vendor.userId === user.userId ||
+    (user.tenantId && product.vendorId === user.tenantId);
 
   if (!isAuthorized) {
     throw new AppError(status.FORBIDDEN, "You do not have permission to delete this product");
@@ -361,8 +383,7 @@ const deleteProduct = async (userId: string, userRole: Role, id: string) => {
 };
 
 const updateProductStatus = async (
-  userId: string,
-  userRole: Role,
+  user: IRequestUser,
   id: string,
   payload: IUpdateProductStatusPayload,
 ) => {
@@ -375,10 +396,12 @@ const updateProductStatus = async (
     throw new AppError(status.NOT_FOUND, "Product not found");
   }
 
-  const isAdmin = userRole === Role.ADMIN || userRole === Role.SUPER_ADMIN;
-  const isOwner = product.vendor.userId === userId;
+  const isAdmin = user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN;
+  const isOwnerOrStaff =
+    product.vendor.userId === user.userId ||
+    (user.tenantId && product.vendorId === user.tenantId);
 
-  if (!isAdmin && !isOwner) {
+  if (!isAdmin && !isOwnerOrStaff) {
     throw new AppError(status.FORBIDDEN, "You do not have permission to change status for this product");
   }
 

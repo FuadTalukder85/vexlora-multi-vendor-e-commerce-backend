@@ -2,13 +2,19 @@ import { Router } from "express";
 import { Role } from "../../../generated/prisma/enums";
 import { checkAuth, optionalAuth } from "../../middlewares/auth.middleware";
 import { validateRequest } from "../../middlewares/validateRequest";
+import { PermissionManager } from "../../utils/permissionManager";
 import { ProductController } from "./product.controller";
 import { ProductValidation } from "./product.validation";
 
 const router = Router();
 
 // Vendor self-service products list
-router.get("/vendor/me", checkAuth(Role.VENDOR, Role.ADMIN, Role.SUPER_ADMIN), ProductController.getMyVendorProducts);
+router.get(
+  "/vendor/me",
+  checkAuth(Role.VENDOR, Role.ADMIN, Role.SUPER_ADMIN),
+  PermissionManager.requireVendorPermission("product:read"),
+  ProductController.getMyVendorProducts,
+);
 
 // Admin-only listing of all products
 router.get("/admin", checkAuth(Role.ADMIN, Role.SUPER_ADMIN), ProductController.getAllProductsAdmin);
@@ -26,25 +32,33 @@ router.get("/:id", optionalAuth, ProductController.getProductById);
 router.post(
   "/",
   checkAuth(Role.VENDOR, Role.ADMIN, Role.SUPER_ADMIN),
+  PermissionManager.requireVendorPermission("product:create"),
   validateRequest(ProductValidation.createProductSchema),
   ProductController.createProduct,
 );
 
-// Update product (Owner or Admin)
+// Update product (Owner, Staff with permission, or Admin)
 router.patch(
   "/:id",
   checkAuth(Role.VENDOR, Role.ADMIN, Role.SUPER_ADMIN),
+  PermissionManager.requireVendorPermission("product:update"),
   validateRequest(ProductValidation.updateProductSchema),
   ProductController.updateProduct,
 );
 
-// Delete product (Owner or Admin)
-router.delete("/:id", checkAuth(Role.VENDOR, Role.ADMIN, Role.SUPER_ADMIN), ProductController.deleteProduct);
+// Delete product (Owner, Staff with permission, or Admin)
+router.delete(
+  "/:id",
+  checkAuth(Role.VENDOR, Role.ADMIN, Role.SUPER_ADMIN),
+  PermissionManager.requireVendorPermission("product:delete"),
+  ProductController.deleteProduct,
+);
 
 // Update product status (Publish/Draft/Archive or Admin Approval/Rejection)
 router.patch(
   "/:id/status",
   checkAuth(Role.VENDOR, Role.ADMIN, Role.SUPER_ADMIN),
+  PermissionManager.requireVendorPermission("product:update"),
   validateRequest(ProductValidation.updateProductStatusSchema),
   ProductController.updateProductStatus,
 );

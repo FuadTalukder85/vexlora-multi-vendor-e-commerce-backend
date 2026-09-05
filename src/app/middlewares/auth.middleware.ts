@@ -77,6 +77,9 @@ export const checkAuth =
         userId: user.id,
         role: user.role as Role,
         email: user.email,
+        tenantId: user.tenantId,
+        isOwner: user.isOwner,
+        isSuperAdmin: user.isSuperAdmin,
       };
 
       next();
@@ -133,6 +136,9 @@ export const optionalAuth = async (req: Request, _res: Response, next: NextFunct
         userId: user.id,
         role: user.role as Role,
         email: user.email,
+        tenantId: user.tenantId,
+        isOwner: user.isOwner,
+        isSuperAdmin: user.isSuperAdmin,
       };
     }
   } catch {

@@ -4,6 +4,9 @@ export interface IRequestUser {
   userId: string;
   role: Role;
   email: string;
+  tenantId?: string | null;
+  isOwner?: boolean;
+  isSuperAdmin?: boolean;
 }
 
 declare global {

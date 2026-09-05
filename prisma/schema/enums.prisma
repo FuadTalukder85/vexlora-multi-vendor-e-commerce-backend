@@ -26,3 +26,9 @@ enum ProductStatus {
   OUT_OF_STOCK
   REJECTED
 }
+
+enum ModuleScope {
+  ADMIN
+  VENDOR
+  BOTH
+}

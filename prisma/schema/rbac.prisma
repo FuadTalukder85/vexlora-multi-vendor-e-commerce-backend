@@ -1,0 +1,98 @@
+model AppRole {
+  id           String      @id @default(cuid())
+  name         String      @unique
+  slug         String      @unique
+  description  String?
+  scope        ModuleScope @default(BOTH) // ADMIN, VENDOR, BOTH
+  isSystemRole Boolean     @default(false)
+  tenantId     String?     // null for platform admin, or vendorProfile.id for vendor roles
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@index([tenantId])
+  @@index([scope])
+  @@map("roles")
+}
+
+model Permission {
+  id          String      @id @default(cuid())
+  key         String      @unique // e.g. "product:read", "product:create", "category:create"
+  name        String      // e.g. "Read Products", "Create Product", "Create Category"
+  description String?
+  category    String      // e.g. "product", "category", "order", "coupon", "payout", "staff", "user"
+  scope       ModuleScope @default(BOTH) // ADMIN, VENDOR, BOTH
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  rolePermissions RolePermission[]
+  userPermissions UserPermission[]
+
+  @@index([category])
+  @@index([scope])
+  @@index([isActive])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String   @id @default(cuid())
+  roleId       String
+  permissionId String
+  assignedById String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  role       AppRole    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  assignedBy User?      @relation("RolePermissionAssignedBy", fields: [assignedById], references: [id])
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id           String   @id @default(cuid())
+  userId       String
+  roleId       String
+  tenantId     String?  // null for platform admin, or vendorProfile.id for vendor store
+  assignedById String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user       User    @relation("UserRoles", fields: [userId], references: [id], onDelete: Cascade)
+  role       AppRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  assignedBy User?   @relation("UserRoleAssignedBy", fields: [assignedById], references: [id])
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@index([tenantId])
+  @@map("user_roles")
+}
+
+model UserPermission {
+  id           String   @id @default(cuid())
+  userId       String
+  permissionId String
+  tenantId     String?  // null for platform, or vendorProfile.id for vendor staff delegation
+  assignedById String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user       User       @relation("UserPermissions", fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  assignedBy User?      @relation("UserPermissionAssignedBy", fields: [assignedById], references: [id])
+
+  @@unique([userId, permissionId])
+  @@index([userId])
+  @@index([permissionId])
+  @@index([tenantId])
+  @@map("user_permissions")
+}

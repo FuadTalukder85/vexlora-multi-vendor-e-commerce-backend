@@ -5,7 +5,7 @@ import { sendResponse } from "../../shared/sendResponse";
 import { ProductService } from "./product.service";
 
 const createProduct = catchAsync(async (req: Request, res: Response) => {
-  const result = await ProductService.createProduct(req.user.userId, req.user.role, req.body);
+  const result = await ProductService.createProduct(req.user, req.body);
 
   sendResponse(res, {
     statusCode: status.CREATED,
@@ -28,7 +28,7 @@ const getAllProductsPublic = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getMyVendorProducts = catchAsync(async (req: Request, res: Response) => {
-  const result = await ProductService.getMyVendorProducts(req.user.userId, req.query);
+  const result = await ProductService.getMyVendorProducts(req.user, req.query);
 
   sendResponse(res, {
     statusCode: status.OK,
@@ -74,7 +74,7 @@ const getProductById = catchAsync(async (req: Request, res: Response) => {
 });
 
 const updateProduct = catchAsync(async (req: Request, res: Response) => {
-  const result = await ProductService.updateProduct(req.user.userId, req.user.role, req.params.id as string, req.body);
+  const result = await ProductService.updateProduct(req.user, req.params.id as string, req.body);
 
   sendResponse(res, {
     statusCode: status.OK,
@@ -85,7 +85,7 @@ const updateProduct = catchAsync(async (req: Request, res: Response) => {
 });
 
 const deleteProduct = catchAsync(async (req: Request, res: Response) => {
-  const result = await ProductService.deleteProduct(req.user.userId, req.user.role, req.params.id as string);
+  const result = await ProductService.deleteProduct(req.user, req.params.id as string);
 
   sendResponse(res, {
     statusCode: status.OK,
@@ -97,8 +97,7 @@ const deleteProduct = catchAsync(async (req: Request, res: Response) => {
 
 const updateProductStatus = catchAsync(async (req: Request, res: Response) => {
   const result = await ProductService.updateProductStatus(
-    req.user.userId,
-    req.user.role,
+    req.user,
     req.params.id as string,
     req.body,
   );

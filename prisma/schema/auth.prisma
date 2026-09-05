@@ -25,10 +25,15 @@ model User {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  sessions      Session[]
-  accounts      Account[]
-  addresses     Address[]
-  vendorProfile VendorProfile? @relation("VendorOwner")
+  sessions            Session[]
+  accounts            Account[]
+  addresses           Address[]
+  vendorProfile       VendorProfile?       @relation("VendorOwner")
+  userRoles           UserRole[]           @relation("UserRoles")
+  assignedUserRoles   UserRole[]           @relation("UserRoleAssignedBy")
+  userPermissions     UserPermission[]     @relation("UserPermissions")
+  assignedPermissions UserPermission[]     @relation("UserPermissionAssignedBy")
+  assignedRolePerms   RolePermission[]     @relation("RolePermissionAssignedBy")
 
   @@index([role])
   @@index([status])
