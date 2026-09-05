@@ -23,6 +23,7 @@ model Product {
   vendor   VendorProfile    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
   category Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   variants ProductVariant[]
+  wishlists Wishlist[]
 
   @@index([vendorId, status])
   @@index([categoryId])
