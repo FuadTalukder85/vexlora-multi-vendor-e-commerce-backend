@@ -37,6 +37,8 @@ model User {
   wishlists           Wishlist[]
   orders              Order[]
   couponUsageLogs     CouponUsageLog[]
+  reviews             Review[]
+  notifications       Notification[]
 
   @@index([role])
   @@index([status])

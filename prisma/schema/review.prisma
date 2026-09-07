@@ -1,0 +1,47 @@
+model Review {
+  id              String    @id @default(cuid())
+  productId       String
+  customerId      String
+  subOrderId      String? // used to verify purchase
+  rating          Int
+  comment         String?
+  images          String[]
+  vendorReply     String?
+  vendorRepliedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  product  Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  customer User            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  subOrder SubOrder?       @relation(fields: [subOrderId], references: [id], onDelete: SetNull)
+  fraudLog ReviewFraudLog?
+
+  @@index([productId])
+  @@index([customerId])
+  @@index([subOrderId])
+  @@index([rating])
+  @@map("reviews")
+}
+
+model ReviewFraudLog {
+  id         String @id @default(cuid())
+  reviewId   String @unique
+  reviewerId String
+  productId  String
+
+  deviceId               String?
+  ipAddress              String?
+  reviewerAccountAgeDays Int?
+  hasVerifiedPurchase    Boolean           @default(false)
+  sellerRelationshipFlag Boolean           @default(false)
+  suspicionScore         Int               @default(0)
+  status                 ReviewFraudStatus @default(CLEAN)
+  createdAt              DateTime          @default(now())
+
+  review  Review  @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([status])
+  @@map("review_fraud_logs")
+}

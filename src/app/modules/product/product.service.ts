@@ -242,6 +242,24 @@ const getProductBySlug = async (slug: string, requester?: IRequestUser) => {
           status: true,
         },
       },
+      reviews: {
+        take: 5,
+        orderBy: { createdAt: "desc" },
+        include: {
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              image: true,
+            },
+          },
+        },
+      },
+      _count: {
+        select: {
+          reviews: true,
+        },
+      },
     },
   });
 
@@ -278,6 +296,24 @@ const getProductById = async (id: string, requester?: IRequestUser) => {
           storeSlug: true,
           storeLogo: true,
           status: true,
+        },
+      },
+      reviews: {
+        take: 5,
+        orderBy: { createdAt: "desc" },
+        include: {
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              image: true,
+            },
+          },
+        },
+      },
+      _count: {
+        select: {
+          reviews: true,
         },
       },
     },

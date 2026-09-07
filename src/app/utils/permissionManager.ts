@@ -33,6 +33,8 @@ const normalizeResource = (resource: string): string => {
   )
     return "payout";
   if (lower === "users") return "user";
+  if (lower === "reviews") return "review";
+  if (lower === "notifications") return "notification";
   return lower;
 };
 
@@ -57,6 +59,8 @@ export const VENDOR_ALLOWED_RESOURCES = new Set([
   "staff",
   "vendor-profile",
   "vendor_profiles",
+  "review",
+  "notification",
 ]);
 
 interface CacheEntry {

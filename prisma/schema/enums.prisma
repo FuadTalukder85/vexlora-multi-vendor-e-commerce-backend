@@ -55,3 +55,9 @@ enum PayoutStatus {
   PAID
   FAILED
 }
+
+enum ReviewFraudStatus {
+  CLEAN
+  FLAGGED
+  REMOVED
+}

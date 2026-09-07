@@ -323,4 +323,44 @@ export const SYSTEM_PERMISSIONS: ISystemPermission[] = [
     scope: ModuleScope.VENDOR,
     description: "Update store banner, logo, description, and payout bank credentials",
   },
+
+  // ==========================================
+  // REVIEW & NOTIFICATION PERMISSIONS
+  // ==========================================
+  {
+    key: "review:read",
+    name: "View Reviews",
+    category: "review",
+    scope: ModuleScope.BOTH,
+    description: "View customer reviews and ratings",
+  },
+  {
+    key: "review:update",
+    name: "Reply to Reviews",
+    category: "review",
+    scope: ModuleScope.BOTH,
+    description: "Reply to customer reviews or update review status",
+  },
+  {
+    key: "review:delete",
+    name: "Moderate / Delete Reviews",
+    category: "review",
+    scope: ModuleScope.ADMIN,
+    description: "Remove or moderate inappropriate customer reviews",
+  },
+
+  {
+    key: "notification:read",
+    name: "View Notifications",
+    category: "notification",
+    scope: ModuleScope.ADMIN,
+    description: "View system and user notifications across the platform",
+  },
+  {
+    key: "notification:create",
+    name: "Create / Broadcast Notifications",
+    category: "notification",
+    scope: ModuleScope.ADMIN,
+    description: "Send targeted or broadcast notifications to users",
+  },
 ];
