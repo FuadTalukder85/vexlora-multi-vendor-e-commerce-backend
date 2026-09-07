@@ -7,7 +7,13 @@ import { prisma } from "../../lib/prisma";
 import { IQueryParams } from "../../types/query.types";
 import { IRequestUser } from "../../types/request.types";
 import { QueryBuilder } from "../../utils/QueryBuilder";
-import { productFilterableFields, productSearchableFields, standardProductInclude } from "./product.constant";
+import {
+  productFilterableFields,
+  productListInclude,
+  productListSelect,
+  productSearchableFields,
+  standardProductInclude,
+} from "./product.constant";
 import { ICreateProductPayload, IUpdateProductPayload, IUpdateProductStatusPayload } from "./product.interface";
 
 const slugify = (text: string): string => {
@@ -172,7 +178,7 @@ const getAllProductsPublic = async (queryParams: IQueryParams) => {
     .filter()
     .sort()
     .paginate()
-    .include(standardProductInclude);
+    .select(productListSelect);
 
   // Price range filters
   if (minPrice !== undefined || maxPrice !== undefined) {
@@ -208,7 +214,7 @@ const getMyVendorProducts = async (user: IRequestUser, queryParams: IQueryParams
     .filter()
     .sort()
     .paginate()
-    .include(standardProductInclude);
+    .select(productListSelect);
 
   return await productQuery.execute();
 };
@@ -222,7 +228,7 @@ const getAllProductsAdmin = async (queryParams: IQueryParams) => {
     .filter()
     .sort()
     .paginate()
-    .include(standardProductInclude);
+    .select(productListSelect);
 
   return await productQuery.execute();
 };

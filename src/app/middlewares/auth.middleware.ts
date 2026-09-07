@@ -90,6 +90,14 @@ export const checkAuth =
 
 export const optionalAuth = async (req: Request, _res: Response, next: NextFunction) => {
   try {
+    const rawCookie = CookieUtils.getCookie(req, "better-auth.session_token");
+    const authHeader = req.headers.authorization;
+
+    // Fast-path: if no cookie and no authorization header, skip session check completely
+    if (!rawCookie && !authHeader) {
+      return next();
+    }
+
     let user: UserModel | null = null;
 
     try {

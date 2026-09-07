@@ -30,6 +30,9 @@ model Product {
 
   @@index([vendorId, status])
   @@index([categoryId])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([vendorId, createdAt(sort: Desc)])
+  @@index([basePrice])
   @@map("products")
 }
 

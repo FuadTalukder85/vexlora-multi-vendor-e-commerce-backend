@@ -336,8 +336,10 @@ export class QueryBuilder<T, TWhereInput = Record<string, unknown>, TInclude = R
   }
 
   async execute(): Promise<IQueryResult<T>> {
+    const cleanCountQuery = { where: this.countQuery.where };
+
     const [total, data] = await Promise.all([
-      this.model.count(this.countQuery as Parameters<typeof this.model.count>[0]),
+      this.model.count(cleanCountQuery as Parameters<typeof this.model.count>[0]),
       this.model.findMany(this.query as Parameters<typeof this.model.findMany>[0]),
     ]);
 
