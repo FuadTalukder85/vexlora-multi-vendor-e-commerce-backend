@@ -4,7 +4,8 @@ import type { InputJsonValue } from "../../../generated/prisma/internal/prismaNa
 import { ProductModel } from "../../../generated/prisma/models";
 import AppError from "../../errors/AppError";
 import { prisma } from "../../lib/prisma";
-import { IQueryParams } from "../../types/query.types";
+import { getCache, setCache, invalidatePattern } from "../../lib/redis";
+import { IQueryParams, IQueryResult } from "../../types/query.types";
 import { IRequestUser } from "../../types/request.types";
 import { QueryBuilder } from "../../utils/QueryBuilder";
 import {
@@ -157,11 +158,20 @@ const createProduct = async (user: IRequestUser, payload: ICreateProductPayload)
       include: standardProductInclude,
     });
 
+    await invalidatePattern("products:public:*");
     return createdProduct;
   });
 };
 
-const getAllProductsPublic = async (queryParams: IQueryParams) => {
+const getAllProductsPublic = async (queryParams: IQueryParams): Promise<IQueryResult<Record<string, unknown>>> => {
+  const cacheKey = "products:public:" + JSON.stringify(queryParams);
+
+  // 1. Try fetching from Redis cache
+  const cachedResult = await getCache<IQueryResult<Record<string, unknown>>>(cacheKey);
+  if (cachedResult) {
+    return cachedResult;
+  }
+
   const { minPrice, maxPrice, ...otherParams } = queryParams;
 
   const productQuery = new QueryBuilder<Record<string, unknown>>(prisma.product, otherParams, {
@@ -188,7 +198,12 @@ const getAllProductsPublic = async (queryParams: IQueryParams) => {
     productQuery.where({ basePrice: priceFilter });
   }
 
-  return await productQuery.execute();
+  const result = await productQuery.execute();
+
+  // 2. Save result in Redis cache (60 seconds TTL)
+  await setCache(cacheKey, result, 60);
+
+  return result;
 };
 
 const getMyVendorProducts = async (user: IRequestUser, queryParams: IQueryParams) => {
@@ -404,6 +419,7 @@ const updateProduct = async (user: IRequestUser, id: string, payload: IUpdatePro
     include: standardProductInclude,
   });
 
+  await invalidatePattern("products:public:*");
   return updatedProduct;
 };
 
@@ -427,9 +443,12 @@ const deleteProduct = async (user: IRequestUser, id: string) => {
     throw new AppError(status.FORBIDDEN, "You do not have permission to delete this product");
   }
 
-  return await prisma.product.delete({
+  const deletedProduct = await prisma.product.delete({
     where: { id },
   });
+
+  await invalidatePattern("products:public:*");
+  return deletedProduct;
 };
 
 const updateProductStatus = async (user: IRequestUser, id: string, payload: IUpdateProductStatusPayload) => {
@@ -460,6 +479,7 @@ const updateProductStatus = async (user: IRequestUser, id: string, payload: IUpd
     include: standardProductInclude,
   });
 
+  await invalidatePattern("products:public:*");
   return updatedProduct;
 };
 export const ProductService = {

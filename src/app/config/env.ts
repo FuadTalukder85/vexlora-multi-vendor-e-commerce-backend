@@ -21,6 +21,7 @@ const envSchema = z.object({
   STRIPE_SECRET_KEY: z.string().optional().default(""),
   STRIPE_WEBHOOK_SECRET: z.string().optional().default(""),
   STRIPE_CURRENCY: z.string().optional().default("usd"),
+  REDIS_URL: z.string().optional().default("redis://127.0.0.1:6379"),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -34,6 +35,7 @@ export const envVars = Object.freeze({
   NODE_ENV: parsed.data.NODE_ENV,
   PORT: parsed.data.PORT,
   DATABASE_URL: parsed.data.DATABASE_URL,
+  REDIS_URL: parsed.data.REDIS_URL,
   BETTER_AUTH_SECRET: parsed.data.BETTER_AUTH_SECRET,
   BETTER_AUTH_URL: parsed.data.BETTER_AUTH_URL,
   SMTP: {
