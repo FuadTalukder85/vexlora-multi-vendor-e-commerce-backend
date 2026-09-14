@@ -20,6 +20,16 @@ app.set("views", path.resolve(process.cwd(), "src/app/templates"));
 // Request ID for tracing
 app.use(requestId);
 
+// High-precision server response time logger
+app.use((req: Request, res: Response, next) => {
+  const startTime = performance.now();
+  res.on("finish", () => {
+    const duration = (performance.now() - startTime).toFixed(2);
+    console.log(`⏱️ [${req.method}] ${req.originalUrl} - ${duration}ms (Status: ${res.statusCode})`);
+  });
+  next();
+});
+
 // CORS
 app.use(
   cors({
