@@ -33,7 +33,7 @@ app.use((req: Request, res: Response, next) => {
 // CORS
 app.use(
   cors({
-    origin: [envVars.CLIENT_URL, envVars.VENDOR_CLIENT_URL, envVars.BETTER_AUTH_URL],
+    origin: [envVars.CLIENT_URL, envVars.VENDOR_CLIENT_URL, envVars.ADMIN_CLIENT_URL, envVars.BETTER_AUTH_URL],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     allowedHeaders: ["Content-Type", "Authorization"],

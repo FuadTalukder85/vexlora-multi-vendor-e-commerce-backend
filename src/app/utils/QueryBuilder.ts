@@ -14,7 +14,7 @@ export class QueryBuilder<T, TWhereInput = Record<string, unknown>, TInclude = R
   private query: PrismaFindManyArgs;
   private countQuery: PrismaCountArgs;
   private page: number = 1;
-  private limit: number = 10;
+  private limit: number = 20;
   private skip: number = 0;
   private sortBy: string = "createdAt";
   private sortOrder: "asc" | "desc" = "desc";
@@ -30,7 +30,7 @@ export class QueryBuilder<T, TWhereInput = Record<string, unknown>, TInclude = R
       include: {},
       orderBy: {},
       skip: 0,
-      take: 10,
+      take: 20,
     };
 
     this.countQuery = {
@@ -242,7 +242,7 @@ export class QueryBuilder<T, TWhereInput = Record<string, unknown>, TInclude = R
 
   paginate(): this {
     const page = Number(this.queryParams.page) || 1;
-    const limit = Number(this.queryParams.limit) || 10;
+    const limit = Number(this.queryParams.limit) || 20;
 
     this.page = page;
     this.limit = limit;
