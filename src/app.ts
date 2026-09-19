@@ -35,8 +35,8 @@ app.use(
   cors({
     origin: [envVars.CLIENT_URL, envVars.VENDOR_CLIENT_URL, envVars.ADMIN_CLIENT_URL, envVars.BETTER_AUTH_URL],
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Client-Timestamp", "X-Requested-With", "Accept"],
   }),
 );
 

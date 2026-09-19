@@ -33,6 +33,7 @@ export interface IQueryParams {
   searchTerm?: string;
   page?: string;
   limit?: string;
+  cursor?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
   fields?: string;
@@ -81,9 +82,13 @@ export interface PrismaWhereConditions {
 export interface IQueryResult<T> {
   data: T[];
   meta: {
-    page: number;
+    page?: number;
     limit: number;
-    total: number;
-    totalPages: number;
+    total?: number;
+    totalPages?: number;
+    hasNextPage?: boolean;
+    hasPrevPage?: boolean;
+    nextCursor?: string | null;
+    prevCursor?: string | null;
   };
 }

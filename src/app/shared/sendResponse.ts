@@ -6,10 +6,14 @@ interface IResponseData<T> {
   message: string;
   data?: T;
   meta?: {
-    page: number;
+    page?: number;
     limit: number;
-    total: number;
-    totalPages: number;
+    total?: number;
+    totalPages?: number;
+    hasNextPage?: boolean;
+    hasPrevPage?: boolean;
+    nextCursor?: string | null;
+    prevCursor?: string | null;
   };
 }
 

@@ -19,6 +19,8 @@ export class QueryBuilder<T, TWhereInput = Record<string, unknown>, TInclude = R
   private sortBy: string = "createdAt";
   private sortOrder: "asc" | "desc" = "desc";
   private selectFields: Record<string, boolean | Record<string, unknown>> | undefined;
+  private isCursorMode: boolean = false;
+  private cursor: string | undefined;
 
   constructor(
     private model: PrismaModelDelegate,
@@ -137,6 +139,8 @@ export class QueryBuilder<T, TWhereInput = Record<string, unknown>, TInclude = R
       "keyword",
       "page",
       "limit",
+      "cursor",
+      "includeTotal",
       "sortBy",
       "sortOrder",
       "fields",
@@ -241,15 +245,36 @@ export class QueryBuilder<T, TWhereInput = Record<string, unknown>, TInclude = R
   }
 
   paginate(): this {
-    const page = Number(this.queryParams.page) || 1;
     const limit = Number(this.queryParams.limit) || 20;
-
-    this.page = page;
     this.limit = limit;
-    this.skip = (page - 1) * limit;
 
-    this.query.skip = this.skip;
-    this.query.take = this.limit;
+    const rawCursor = this.queryParams.cursor;
+    const hasCursorParam = rawCursor !== undefined;
+
+    if (hasCursorParam) {
+      this.isCursorMode = true;
+      this.cursor = typeof rawCursor === "string" && rawCursor.trim() !== "" ? rawCursor.trim() : undefined;
+
+      // In cursor mode, we fetch limit + 1 items to determine hasNextPage without a full COUNT(*)
+      this.query.take = this.limit + 1;
+
+      if (this.cursor) {
+        this.query.cursor = { id: this.cursor };
+        this.query.skip = 1; // Skip the cursor pivot item itself
+      } else {
+        delete this.query.cursor;
+        this.query.skip = 0;
+      }
+    } else {
+      this.isCursorMode = false;
+      const page = Number(this.queryParams.page) || 1;
+      this.page = page;
+      this.skip = (page - 1) * limit;
+
+      delete this.query.cursor;
+      this.query.skip = this.skip;
+      this.query.take = this.limit;
+    }
 
     return this;
   }
@@ -261,19 +286,21 @@ export class QueryBuilder<T, TWhereInput = Record<string, unknown>, TInclude = R
     this.sortBy = sortBy;
     this.sortOrder = sortOrder;
 
+    let primaryOrder: Record<string, unknown>;
+
     if (sortBy.includes(".")) {
       const parts = sortBy.split(".");
 
       if (parts.length === 2) {
         const [relation, nestedField] = parts;
-        this.query.orderBy = {
+        primaryOrder = {
           [relation]: {
             [nestedField]: sortOrder,
           },
         };
       } else if (parts.length === 3) {
         const [relation, nestedRelation, nestedField] = parts;
-        this.query.orderBy = {
+        primaryOrder = {
           [relation]: {
             [nestedRelation]: {
               [nestedField]: sortOrder,
@@ -281,14 +308,23 @@ export class QueryBuilder<T, TWhereInput = Record<string, unknown>, TInclude = R
           },
         };
       } else {
-        this.query.orderBy = {
+        primaryOrder = {
           [sortBy]: sortOrder,
         };
       }
     } else {
-      this.query.orderBy = {
+      primaryOrder = {
         [sortBy]: sortOrder,
       };
+    }
+
+    // Deterministic tie-breaker: If sorting by a field other than id, append { id: sortOrder }
+    // This is essential for keyset/cursor pagination so rows with identical values (e.g. price, rating)
+    // maintain a strictly deterministic sequence across batches.
+    if (sortBy !== "id") {
+      this.query.orderBy = [primaryOrder, { id: sortOrder }];
+    } else {
+      this.query.orderBy = primaryOrder;
     }
 
     return this;
@@ -381,6 +417,39 @@ export class QueryBuilder<T, TWhereInput = Record<string, unknown>, TInclude = R
   async execute(): Promise<IQueryResult<T>> {
     const cleanCountQuery = { where: this.countQuery.where };
 
+    if (this.isCursorMode) {
+      // In cursor mode, if client specifically requested total count via includeTotal=true, run count in parallel
+      const shouldIncludeTotal =
+        this.queryParams.includeTotal === "true" || this.queryParams.includeTotal === true;
+
+      const [total, rawData] = await Promise.all([
+        shouldIncludeTotal
+          ? this.model.count(cleanCountQuery as Parameters<typeof this.model.count>[0])
+          : Promise.resolve(undefined),
+        this.model.findMany(this.query as Parameters<typeof this.model.findMany>[0]),
+      ]);
+
+      const hasNextPage = rawData.length > this.limit;
+      const data = hasNextPage ? rawData.slice(0, this.limit) : rawData;
+      const nextCursor =
+        hasNextPage && data.length > 0 ? (data[data.length - 1] as Record<string, unknown>)?.id as string ?? null : null;
+      const prevCursor = this.cursor || null;
+
+      return {
+        data: data as T[],
+        meta: {
+          limit: this.limit,
+          hasNextPage,
+          hasPrevPage: Boolean(this.cursor),
+          nextCursor,
+          prevCursor,
+          ...(total !== undefined
+            ? { total, totalPages: Math.ceil(total / this.limit) }
+            : {}),
+        },
+      };
+    }
+
     const [total, data] = await Promise.all([
       this.model.count(cleanCountQuery as Parameters<typeof this.model.count>[0]),
       this.model.findMany(this.query as Parameters<typeof this.model.findMany>[0]),
@@ -395,6 +464,9 @@ export class QueryBuilder<T, TWhereInput = Record<string, unknown>, TInclude = R
         limit: this.limit,
         total,
         totalPages,
+        hasNextPage: this.page < totalPages,
+        hasPrevPage: this.page > 1,
+        nextCursor: data.length > 0 ? (data[data.length - 1] as Record<string, unknown>)?.id as string ?? null : null,
       },
     };
   }
