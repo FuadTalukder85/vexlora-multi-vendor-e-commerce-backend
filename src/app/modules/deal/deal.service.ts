@@ -9,6 +9,7 @@ import {
   IReviewDealRequestPayload,
   IDealFilterParams,
 } from "./deal.interface";
+import { DealSocketEvents } from "../../lib/socket";
 
 // Automatically maintain active/expired states for deals
 const autoUpdateDealStatuses = async () => {
@@ -186,6 +187,18 @@ const createDealRequest = async (user: IRequestUser | undefined, payload: ICreat
     },
   });
 
+  // Real-time WebSocket emission to Admin
+  DealSocketEvents.notifyDealRequestCreated({
+    id: dealRequest.id,
+    productId: dealRequest.productId,
+    productTitle: dealRequest.product?.title,
+    vendorId: vendorProfile.id,
+    vendorName: vendorProfile.storeName,
+    proposedDealPrice: Number(dealRequest.proposedDealPrice),
+    status: dealRequest.status,
+    createdAt: dealRequest.createdAt,
+  });
+
   return dealRequest;
 };
 
@@ -299,6 +312,17 @@ const reviewDealRequest = async (
         reviewedAt: now,
       },
     });
+
+    DealSocketEvents.notifyDealRequestReviewed({
+      id: requestId,
+      dealId: null,
+      vendorId: dealRequest.vendorId,
+      vendorUserId: dealRequest.requestedById,
+      productTitle: dealRequest.product?.title,
+      status: "REJECTED",
+      reviewNote: updated.reviewNote,
+    });
+
     return updated;
   }
 
@@ -342,6 +366,16 @@ const reviewDealRequest = async (
     return approvedRequest;
   });
 
+  DealSocketEvents.notifyDealRequestReviewed({
+    id: requestId,
+    dealId: result.dealId,
+    vendorId: dealRequest.vendorId,
+    vendorUserId: dealRequest.requestedById,
+    productTitle: dealRequest.product?.title,
+    status: "APPROVED",
+    reviewNote: result.reviewNote,
+  });
+
   return result;
 };
 
@@ -381,6 +415,13 @@ const createDirectDeal = async (user: IRequestUser | undefined, payload: ICreate
     include: { product: true, vendor: true },
   });
 
+  DealSocketEvents.notifyDealUpdated({
+    id: deal.id,
+    status: deal.status,
+    title: deal.title || product.title,
+    vendorId: deal.vendorId,
+  });
+
   return deal;
 };
 
@@ -397,6 +438,13 @@ const cancelDeal = async (dealId: string, _user: IRequestUser | undefined) => {
   const updated = await prisma.deal.update({
     where: { id: dealId },
     data: { status: DealStatus.CANCELLED },
+  });
+
+  DealSocketEvents.notifyDealUpdated({
+    id: dealId,
+    status: DealStatus.CANCELLED,
+    title: deal.title,
+    vendorId: deal.vendorId,
   });
 
   return updated;

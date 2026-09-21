@@ -1,11 +1,16 @@
+import { createServer } from "http";
 import app from "./app";
 import { envVars } from "./app/config/env";
 import { prisma } from "./app/lib/prisma";
 import { logger } from "./app/utils/logger";
+import { initSocket } from "./app/lib/socket";
 
 const bootstrap = async () => {
   try {
-    const server = app.listen(envVars.PORT, () => {
+    const httpServer = createServer(app);
+    initSocket(httpServer);
+
+    const server = httpServer.listen(envVars.PORT, () => {
       logger.info(`Server is running on http://localhost:${envVars.PORT}`);
       logger.info(`Environment: ${envVars.NODE_ENV}`);
     });
