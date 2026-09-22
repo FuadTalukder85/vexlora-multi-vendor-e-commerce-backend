@@ -182,6 +182,17 @@ const handleStripeWebhook = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getStripePlatformBalance = catchAsync(async (_req: Request, res: Response) => {
+  const result = await StripeService.getStripePlatformBalance();
+
+  sendResponse(res, {
+    statusCode: status.OK,
+    success: true,
+    message: "Stripe platform balance retrieved successfully",
+    data: result,
+  });
+});
+
 export const PayoutController = {
   requestVendorPayout,
   getVendorPayouts,
@@ -198,4 +209,5 @@ export const PayoutController = {
   getStripeDashboardLink,
   disbursePayoutWithStripe,
   handleStripeWebhook,
+  getStripePlatformBalance,
 };

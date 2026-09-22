@@ -73,6 +73,14 @@ router.get(
   PayoutController.getAdminPayoutStatistics,
 );
 
+// Real-time live Stripe account balance for platform
+router.get(
+  "/admin/stripe/balance",
+  checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
+  PermissionManager.requirePermission("payout:read"),
+  PayoutController.getStripePlatformBalance,
+);
+
 // Create a payout for a vendor directly
 router.post(
   "/admin",

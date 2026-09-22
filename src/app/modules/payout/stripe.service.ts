@@ -68,8 +68,9 @@ const createAccountOnboardingLink = async (user: IRequestUser, vendorId: string)
 
   const account = await createOrGetConnectAccount(vendorId, email, storeName);
 
-  const returnUrl = `${envVars.CLIENT_URL}/vendor/settings/payouts?status=stripe_success`;
-  const refreshUrl = `${envVars.CLIENT_URL}/vendor/settings/payouts?status=stripe_refresh`;
+  const vendorBaseUrl = envVars.VENDOR_CLIENT_URL || envVars.CLIENT_URL;
+  const returnUrl = `${vendorBaseUrl}/payouts?status=stripe_success`;
+  const refreshUrl = `${vendorBaseUrl}/payouts?status=stripe_refresh`;
 
   const accountLink = await stripe.accountLinks.create({
     account: account.id,
@@ -165,6 +166,29 @@ const executeTransferToVendor = async (
     throw new AppError(status.BAD_REQUEST, "Transfer amount must be greater than zero");
   }
 
+  // Pre-check available platform balance in Stripe
+  try {
+    const balance = await stripe.balance.retrieve();
+    const currency = (envVars.STRIPE.CURRENCY || "usd").toLowerCase();
+    
+    const availableForCurrency = balance.available.find((b) => b.currency.toLowerCase() === currency)?.amount || 0;
+    const pendingForCurrency = balance.pending.find((b) => b.currency.toLowerCase() === currency)?.amount || 0;
+
+    if (availableForCurrency < amountInCents) {
+      const availableDollars = (availableForCurrency / 100).toFixed(2);
+      const pendingDollars = (pendingForCurrency / 100).toFixed(2);
+      const requiredDollars = amount.toFixed(2);
+
+      throw new AppError(
+        status.BAD_REQUEST,
+        `Insufficient available Stripe balance ($${availableDollars} available, but payout requires $${requiredDollars}). Customer payment funds ($${pendingDollars}) are currently clearing in Stripe's 2-day rolling clearance window. Please wait for pending balance to settle or top up your Stripe balance.`,
+      );
+    }
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    // Non-blocking if balance check fails due to network, let transfers.create attempt
+  }
+
   try {
     const transfer = await stripe.transfers.create({
       amount: amountInCents,
@@ -236,6 +260,21 @@ const handleStripeWebhookEvent = async (rawBody: string | Buffer, signature: str
   return { received: true, eventType: event.type };
 };
 
+const getStripePlatformBalance = async () => {
+  const stripe = getStripeClient();
+  const balance = await stripe.balance.retrieve();
+
+  const available = balance.available.reduce((sum, b) => sum + b.amount, 0) / 100;
+  const pending = balance.pending.reduce((sum, b) => sum + b.amount, 0) / 100;
+  const currency = balance.available[0]?.currency?.toUpperCase() || "USD";
+
+  return {
+    available,
+    pending,
+    currency,
+  };
+};
+
 export const StripeService = {
   createOrGetConnectAccount,
   createAccountOnboardingLink,
@@ -243,4 +282,5 @@ export const StripeService = {
   createExpressDashboardLink,
   executeTransferToVendor,
   handleStripeWebhookEvent,
+  getStripePlatformBalance,
 };
