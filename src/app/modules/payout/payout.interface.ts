@@ -26,13 +26,17 @@ export interface IVendorPayoutStatistics {
   hasPayoutMethod: boolean;
 }
 
-export interface IAdminPayoutStatistics {
-  totalPlatformVolume: number;
-  totalCommissionEarned: number;
-  totalVendorEarnings: number;
+export interface IPayoutStatistics {
   totalPaidOut: number;
   pendingPayoutsAmount: number;
   pendingPayoutsCount: number;
   paidPayoutsCount: number;
   failedPayoutsCount: number;
 }
+
+export interface IAdminPayoutStatistics extends IPayoutStatistics {
+  totalPlatformVolume: number;
+  totalCommissionEarned: number;
+  totalVendorEarnings: number;
+}
+
