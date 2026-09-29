@@ -244,6 +244,7 @@ const getAllFraudProfiles = async (query: IQueryParams) => {
   const fraudProfileQuery = new QueryBuilder(prisma.fraudProfile, query, {
     searchableFields: fraudProfileSearchableFields,
     filterableFields: fraudProfileFilterableFields,
+    defaultSortBy: "updatedAt",
   })
     .search()
     .filter()
@@ -427,6 +428,7 @@ const getHighRiskProfiles = async (query: IQueryParams) => {
   const fraudProfileQuery = new QueryBuilder(prisma.fraudProfile, queryWithHighRisk, {
     searchableFields: fraudProfileSearchableFields,
     filterableFields: fraudProfileFilterableFields,
+    defaultSortBy: "updatedAt",
   })
     .search()
     .filter()

@@ -44,6 +44,7 @@ export interface IQueryParams {
 export interface IQueryConfig {
   searchableFields?: string[];
   filterableFields?: string[];
+  defaultSortBy?: string;
 }
 
 export interface PrismaStringFilter {

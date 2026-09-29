@@ -280,7 +280,7 @@ export class QueryBuilder<T, TWhereInput = Record<string, unknown>, TInclude = R
   }
 
   sort(): this {
-    const sortBy = this.queryParams.sortBy || "createdAt";
+    const sortBy = this.queryParams.sortBy || this.config.defaultSortBy || "createdAt";
     const sortOrder = this.queryParams.sortOrder === "asc" ? "asc" : "desc";
 
     this.sortBy = sortBy;
