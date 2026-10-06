@@ -94,6 +94,20 @@ const updatePaymentStatusAdmin = catchAsync(async (req: Request, res: Response) 
   });
 });
 
+const trackOrder = catchAsync(async (req: Request, res: Response) => {
+  const orderNumber = req.params.orderNumber as string;
+  const email = req.query.email as string | undefined;
+
+  const result = await OrderService.trackOrderByNumber(orderNumber, email);
+
+  sendResponse(res, {
+    statusCode: status.OK,
+    success: true,
+    message: "Order tracking details retrieved successfully",
+    data: result,
+  });
+});
+
 export const OrderController = {
   createPaymentIntent,
   createOrder,
@@ -103,4 +117,5 @@ export const OrderController = {
   getAllOrdersAdmin,
   getOrderByIdAdmin,
   updatePaymentStatusAdmin,
+  trackOrder,
 };

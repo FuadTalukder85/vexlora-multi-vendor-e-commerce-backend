@@ -184,7 +184,7 @@ const getAllProductsPublic = async (queryParams: IQueryParams): Promise<IQueryRe
     return cachedResult;
   }
 
-  const { minPrice, maxPrice, category, categoryId, ...otherParams } = queryParams;
+  const { minPrice, maxPrice, category, categoryId, vendorSlug, storeSlug, vendorId, ...otherParams } = queryParams;
 
   const targetCategoryParam = categoryId || category;
   let categoryIdsToFilter: string[] | undefined;
@@ -248,6 +248,18 @@ const getAllProductsPublic = async (queryParams: IQueryParams): Promise<IQueryRe
     } else {
       productQuery.where({ categoryId: { in: categoryIdsToFilter } });
     }
+  }
+
+  // Vendor/Store filter by slug or ID
+  const targetVendorSlug = (vendorSlug || storeSlug) as string | undefined;
+  if (targetVendorSlug && targetVendorSlug !== "all") {
+    productQuery.where({
+      vendor: {
+        storeSlug: targetVendorSlug.toLowerCase(),
+      },
+    });
+  } else if (vendorId && typeof vendorId === "string" && vendorId !== "all") {
+    productQuery.where({ vendorId });
   }
 
   // Price range filters

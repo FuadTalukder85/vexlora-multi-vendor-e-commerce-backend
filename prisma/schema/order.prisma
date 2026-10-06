@@ -52,6 +52,7 @@ model SubOrder {
   items       OrderItem[]
   reviews     Review[]
   payoutLinks PayoutSubOrder[]
+  conversations Conversation[] @relation("SubOrderConversations")
 
   @@index([vendorId, status])
   @@index([orderId])

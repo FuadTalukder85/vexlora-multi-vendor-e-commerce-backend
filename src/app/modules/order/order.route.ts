@@ -29,6 +29,9 @@ router.get("/my-orders", checkAuth(), OrderController.getMyOrders);
 // Get single order details for logged-in user
 router.get("/my-orders/:id", checkAuth(), OrderController.getMyOrderById);
 
+// Track order by order number (accessible by customer/guest with orderNumber)
+router.get("/track/:orderNumber", OrderController.trackOrder);
+
 // Cancel customer order if not yet shipped
 router.patch("/my-orders/:id/cancel", checkAuth(), OrderController.cancelMyOrder);
 

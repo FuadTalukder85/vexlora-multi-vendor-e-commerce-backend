@@ -610,6 +610,64 @@ const updatePaymentStatusAdmin = async (orderId: string, payload: IUpdatePayment
   });
 };
 
+const trackOrderByNumber = async (orderNumber: string, email?: string) => {
+  const whereClause: { orderNumber: string; customer?: { email: string } } = {
+    orderNumber: orderNumber.trim(),
+  };
+
+  if (email) {
+    whereClause.customer = {
+      email: email.trim().toLowerCase(),
+    };
+  }
+
+  const order = await prisma.order.findFirst({
+    where: whereClause,
+    include: {
+      ...standardOrderInclude,
+      subOrders: {
+        include: {
+          vendor: {
+            select: {
+              id: true,
+              storeName: true,
+              storeSlug: true,
+              storeLogo: true,
+              ratingAvg: true,
+            },
+          },
+          items: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  title: true,
+                  slug: true,
+                  images: true,
+                },
+              },
+              variant: {
+                select: {
+                  id: true,
+                  sku: true,
+                  attributes: true,
+                  image: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!order) {
+    throw new AppError(status.NOT_FOUND, `No order found with order number "${orderNumber}"`);
+  }
+
+  return order;
+};
+
 export const OrderService = {
   createPaymentIntent,
   createOrder,
@@ -619,4 +677,5 @@ export const OrderService = {
   getAllOrdersAdmin,
   getOrderByIdAdmin,
   updatePaymentStatusAdmin,
+  trackOrderByNumber,
 };
