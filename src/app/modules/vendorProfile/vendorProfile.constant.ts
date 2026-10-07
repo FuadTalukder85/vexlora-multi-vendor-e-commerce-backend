@@ -30,6 +30,15 @@ export const publicVendorSelect = {
   ratingAvg: true,
   ratingCount: true,
   createdAt: true,
+  _count: {
+    select: {
+      products: {
+        where: {
+          status: "ACTIVE" as const,
+        },
+      },
+    },
+  },
   owner: {
     select: {
       name: true,

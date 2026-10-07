@@ -25,6 +25,8 @@ import { WishlistRoutes } from "../modules/wishlist/wishlist.route";
 import { DealRoutes } from "../modules/deal/deal.route";
 import { ImageSearchRoutes } from "../modules/imageSearch/imageSearch.route";
 import { PlatformSettingRoutes } from "../modules/platformSetting/platformSetting.route";
+import { AnalyticsRoutes } from "../modules/analytics/analytics.route";
+import { ChatRoutes } from "../modules/chat/chat.route";
 
 const router = Router();
 
@@ -54,5 +56,7 @@ router.use("/notifications", NotificationRoutes);
 router.use("/deals", DealRoutes);
 router.use("/image-search", ImageSearchRoutes);
 router.use("/platform-settings", PlatformSettingRoutes);
+router.use("/analytics", AnalyticsRoutes);
+router.use("/chats", ChatRoutes);
 
 export const IndexRoutes = router;

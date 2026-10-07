@@ -30,6 +30,7 @@ model VendorProfile {
   sellerFraudProfile SellerFraudProfile?
   deals              Deal[]
   dealRequests       DealRequest[]
+  conversations      Conversation[]   @relation("VendorConversations")
 
   @@index([status])
   @@map("vendor_profiles")

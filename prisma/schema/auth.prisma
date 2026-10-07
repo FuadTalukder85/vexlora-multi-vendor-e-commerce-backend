@@ -41,8 +41,10 @@ model User {
   notifications       Notification[]
   deviceLinks         DeviceFingerprintUser[]
   fraudProfile        FraudProfile?
-  fraudAuditLogs      FraudAuditLog[]         @relation("FraudAuditTarget")
+    fraudAuditLogs      FraudAuditLog[]         @relation("FraudAuditTarget")
   cartItems           CartItem[]
+  customerConversations Conversation[]        @relation("CustomerConversations")
+  sentMessages        ChatMessage[]           @relation("SentMessages")
 
   @@index([role])
   @@index([status])
