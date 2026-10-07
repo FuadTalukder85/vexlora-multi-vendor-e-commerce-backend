@@ -39,4 +39,3 @@ export interface IAdminPayoutStatistics extends IPayoutStatistics {
   totalCommissionEarned: number;
   totalVendorEarnings: number;
 }
-
