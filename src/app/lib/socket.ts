@@ -76,6 +76,54 @@ export const initSocket = (httpServer: HttpServer): SocketIOServer => {
       socket.join("deals_room");
     });
 
+    // Chat room subscription & typing indicators
+    socket.on("join_conversation", (conversationId: string) => {
+      if (conversationId) {
+        socket.join(`conversation_${conversationId}`);
+        logger.info(`[WebSocket] ${socket.id} joined conversation_${conversationId}`);
+      }
+    });
+
+    socket.on("leave_conversation", (conversationId: string) => {
+      if (conversationId) {
+        socket.leave(`conversation_${conversationId}`);
+      }
+    });
+
+    socket.on("typing_start", (data: { conversationId: string; userName?: string }) => {
+      if (data?.conversationId) {
+        socket.to(`conversation_${data.conversationId}`).emit("USER_TYPING", {
+          conversationId: data.conversationId,
+          userName: data.userName || user?.name || "Someone",
+          isTyping: true,
+        });
+      }
+    });
+
+    socket.on("typing_stop", (data: { conversationId: string; userName?: string }) => {
+      if (data?.conversationId) {
+        socket.to(`conversation_${data.conversationId}`).emit("USER_TYPING", {
+          conversationId: data.conversationId,
+          userName: data.userName || user?.name || "Someone",
+          isTyping: false,
+        });
+      }
+    });
+
+    // Order live tracking room subscription
+    socket.on("join_order", (orderNumber: string) => {
+      if (orderNumber) {
+        socket.join(`order_${orderNumber}`);
+        logger.info(`[WebSocket] ${socket.id} joined tracking room order_${orderNumber}`);
+      }
+    });
+
+    socket.on("leave_order", (orderNumber: string) => {
+      if (orderNumber) {
+        socket.leave(`order_${orderNumber}`);
+      }
+    });
+
     socket.on("disconnect", () => {
       // Disconnected
     });
@@ -90,6 +138,35 @@ export const getIO = (): SocketIOServer => {
     throw new Error("Socket.IO is not initialized! Call initSocket(httpServer) first.");
   }
   return io;
+};
+
+/**
+ * Real-time Event Emitters for Order Tracking
+ */
+export const OrderSocketEvents = {
+  notifySubOrderStatusUpdated: (payload: {
+    orderId: string;
+    orderNumber: string;
+    subOrderId: string;
+    customerId: string;
+    vendorId: string;
+    status: string;
+    trackingNumber?: string | null;
+    updatedAt: string | Date;
+  }) => {
+    if (!io) return;
+    const eventData = {
+      type: "ORDER_STATUS_UPDATED",
+      data: payload,
+      message: `Order #${payload.orderNumber} status updated to ${payload.status}`,
+      timestamp: new Date().toISOString(),
+    };
+
+    io.to(`order_${payload.orderNumber}`).emit("ORDER_STATUS_UPDATED", eventData);
+    io.to(`user_${payload.customerId}`).emit("ORDER_STATUS_UPDATED", eventData);
+    io.to(`vendor_${payload.vendorId}`).emit("ORDER_STATUS_UPDATED", eventData);
+    io.to("admin_room").emit("ORDER_STATUS_UPDATED", eventData);
+  },
 };
 
 /**

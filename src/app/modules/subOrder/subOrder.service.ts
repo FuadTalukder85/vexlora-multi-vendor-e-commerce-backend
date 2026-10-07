@@ -8,6 +8,7 @@ import { IRequestUser } from "../../types/request.types";
 import { QueryBuilder } from "../../utils/QueryBuilder";
 import { standardSubOrderInclude, subOrderFilterableFields, subOrderSearchableFields } from "./subOrder.constant";
 import { IUpdateSubOrderStatusPayload } from "./subOrder.interface";
+import { OrderSocketEvents } from "../../lib/socket";
 
 const resolveVendorIdForUser = async (user: IRequestUser): Promise<string> => {
   let vendorId = user.tenantId;
@@ -124,7 +125,7 @@ const updateVendorSubOrderStatus = async (
     const deliveredAt =
       payload.status === SubOrderStatus.DELIVERED && !subOrder.deliveredAt ? new Date() : subOrder.deliveredAt;
 
-    return await tx.subOrder.update({
+    const updated = await tx.subOrder.update({
       where: { id: subOrderId },
       data: {
         status: payload.status,
@@ -134,6 +135,23 @@ const updateVendorSubOrderStatus = async (
       },
       include: standardSubOrderInclude,
     });
+
+    try {
+      OrderSocketEvents.notifySubOrderStatusUpdated({
+        orderId: updated.order.id,
+        orderNumber: updated.order.orderNumber,
+        subOrderId: updated.id,
+        customerId: updated.order.customerId,
+        vendorId: updated.vendorId,
+        status: updated.status,
+        trackingNumber: updated.trackingNumber,
+        updatedAt: updated.updatedAt,
+      });
+    } catch (err) {
+      // Socket error
+    }
+
+    return updated;
   });
 };
 
@@ -198,7 +216,7 @@ const updateSubOrderStatusAdmin = async (subOrderId: string, payload: IUpdateSub
     const deliveredAt =
       payload.status === SubOrderStatus.DELIVERED && !subOrder.deliveredAt ? new Date() : subOrder.deliveredAt;
 
-    return await tx.subOrder.update({
+    const updated = await tx.subOrder.update({
       where: { id: subOrderId },
       data: {
         status: payload.status,
@@ -208,6 +226,23 @@ const updateSubOrderStatusAdmin = async (subOrderId: string, payload: IUpdateSub
       },
       include: standardSubOrderInclude,
     });
+
+    try {
+      OrderSocketEvents.notifySubOrderStatusUpdated({
+        orderId: updated.order.id,
+        orderNumber: updated.order.orderNumber,
+        subOrderId: updated.id,
+        customerId: updated.order.customerId,
+        vendorId: updated.vendorId,
+        status: updated.status,
+        trackingNumber: updated.trackingNumber,
+        updatedAt: updated.updatedAt,
+      });
+    } catch (err) {
+      // Socket error
+    }
+
+    return updated;
   });
 };
 

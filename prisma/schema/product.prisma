@@ -31,6 +31,7 @@ model Product {
   cartItems       CartItem[]
   deals           Deal[]
   dealRequests    DealRequest[]
+  conversations   Conversation[]   @relation("ProductConversations")
 
   @@index([vendorId, status])
   @@index([categoryId])
