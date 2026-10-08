@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { Role } from "../../../generated/prisma/enums";
+import { multerUpload } from "../../config/multer.config";
 import { checkAuth } from "../../middlewares/auth.middleware";
 import { validateRequest } from "../../middlewares/validateRequest";
 import { PermissionManager } from "../../utils/permissionManager";
@@ -15,6 +16,13 @@ router.get("/slug/:slug", CategoryController.getCategoryBySlug);
 router.get("/:id", CategoryController.getCategoryById);
 
 // Admin-only management routes with granular permission guards
+router.post(
+  "/upload-image",
+  checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
+  PermissionManager.requireAnyPermission(["category:create", "category:update"]),
+  multerUpload.single("image"),
+  CategoryController.uploadCategoryImage,
+);
 router.post(
   "/",
   checkAuth(Role.ADMIN, Role.SUPER_ADMIN),

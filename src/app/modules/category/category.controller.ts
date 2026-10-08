@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import status from "http-status";
+import AppError from "../../errors/AppError";
 import { catchAsync } from "../../shared/catchAsync";
 import { sendResponse } from "../../shared/sendResponse";
 import { CategoryService } from "./category.service";
@@ -82,6 +83,21 @@ const deleteCategory = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const uploadCategoryImage = catchAsync(async (req: Request, res: Response) => {
+  const file = req.file as Express.Multer.File;
+
+  if (!file || !file.path) {
+    throw new AppError(status.BAD_REQUEST, "No image file provided for upload");
+  }
+
+  sendResponse(res, {
+    statusCode: status.OK,
+    success: true,
+    message: "Category image uploaded successfully",
+    data: { url: file.path },
+  });
+});
+
 export const CategoryController = {
   createCategory,
   getAllCategories,
@@ -90,4 +106,5 @@ export const CategoryController = {
   getCategoryBySlug,
   updateCategory,
   deleteCategory,
+  uploadCategoryImage,
 };
