@@ -7,6 +7,7 @@ const createCategorySchema = z.object({
   image: z.string().url("Image must be a valid URL").optional().nullable(),
   commissionOverride: z.number().min(0).max(100).optional().nullable(),
   isActive: z.boolean().optional(),
+  isDeleted: z.boolean().optional(),
 });
 
 const updateCategorySchema = z.object({
@@ -16,6 +17,7 @@ const updateCategorySchema = z.object({
   image: z.string().url("Image must be a valid URL").optional().nullable(),
   commissionOverride: z.number().min(0).max(100).optional().nullable(),
   isActive: z.boolean().optional(),
+  isDeleted: z.boolean().optional(),
 });
 
 export const CategoryValidation = {

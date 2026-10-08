@@ -19,14 +19,33 @@ export const initSocket = (httpServer: HttpServer): SocketIOServer => {
   // Socket Handshake Authentication Middleware
   io.use(async (socket: Socket, next) => {
     try {
-      const token =
-        (socket.handshake.auth?.token as string) ||
-        (socket.handshake.headers?.authorization?.replace("Bearer ", "") as string);
+      const authHeader = socket.handshake.headers?.authorization;
+      const bearerToken = authHeader?.startsWith("Bearer ")
+        ? authHeader.substring(7).trim()
+        : (socket.handshake.auth?.token as string);
 
-      if (token) {
+      const cookieHeader = socket.handshake.headers?.cookie || "";
+      const tokensToTry: string[] = [];
+
+      if (bearerToken) tokensToTry.push(bearerToken);
+
+      if (cookieHeader) {
+        const cookieMatches = cookieHeader.matchAll(/(?:better-auth\.session_token|__Secure-better-auth\.session_token)=([^;]+)/g);
+        for (const match of cookieMatches) {
+          if (match[1]) {
+            const rawVal = decodeURIComponent(match[1]);
+            tokensToTry.push(rawVal);
+            if (rawVal.includes(".")) {
+              tokensToTry.push(rawVal.split(".")[0]);
+            }
+          }
+        }
+      }
+
+      if (tokensToTry.length > 0) {
         const session = await prisma.session.findFirst({
           where: {
-            token,
+            token: { in: tokensToTry },
             expiresAt: { gt: new Date() },
           },
           include: {
@@ -59,6 +78,56 @@ export const initSocket = (httpServer: HttpServer): SocketIOServer => {
 
     if (userId) {
       socket.join(`user_${userId}`);
+
+      // Deliver any undelivered messages pending for this newly connected user/vendor
+      (async () => {
+        try {
+          const userConvs = await prisma.conversation.findMany({
+            where: role === Role.VENDOR && vendorId
+              ? { vendorId }
+              : { customerId: userId },
+            select: { id: true, customerId: true, vendor: { select: { userId: true } } },
+          });
+
+          const convIds = userConvs.map((c) => c.id);
+          if (convIds.length > 0) {
+            const undelivered = await prisma.chatMessage.findMany({
+              where: {
+                conversationId: { in: convIds },
+                senderId: { not: userId },
+                isDelivered: false,
+              },
+              select: { conversationId: true },
+            });
+
+            if (undelivered.length > 0) {
+              await prisma.chatMessage.updateMany({
+                where: {
+                  conversationId: { in: convIds },
+                  senderId: { not: userId },
+                  isDelivered: false,
+                },
+                data: { isDelivered: true },
+              });
+
+              const affectedConvIds = Array.from(new Set(undelivered.map((m) => m.conversationId)));
+              for (const cId of affectedConvIds) {
+                const payload = { conversationId: cId, deliveredTo: userId };
+                io?.to(`conversation_${cId}`).emit("MESSAGES_DELIVERED", payload);
+                const c = userConvs.find((x) => x.id === cId);
+                if (c) {
+                  io?.to(`user_${c.customerId}`).emit("MESSAGES_DELIVERED", payload);
+                  if (c.vendor?.userId) {
+                    io?.to(`user_${c.vendor.userId}`).emit("MESSAGES_DELIVERED", payload);
+                  }
+                }
+              }
+            }
+          }
+        } catch {
+          // Ignore
+        }
+      })();
     }
 
     if (role === Role.ADMIN || role === Role.SUPER_ADMIN) {
@@ -77,10 +146,49 @@ export const initSocket = (httpServer: HttpServer): SocketIOServer => {
     });
 
     // Chat room subscription & typing indicators
-    socket.on("join_conversation", (conversationId: string) => {
+    socket.on("join_conversation", async (conversationId: string) => {
       if (conversationId) {
         socket.join(`conversation_${conversationId}`);
         logger.info(`[WebSocket] ${socket.id} joined conversation_${conversationId}`);
+        if (userId) {
+          try {
+            await prisma.chatMessage.updateMany({
+              where: {
+                conversationId,
+                senderId: { not: userId },
+                isDelivered: false,
+              },
+              data: { isDelivered: true },
+            });
+            io?.to(`conversation_${conversationId}`).emit("MESSAGES_DELIVERED", {
+              conversationId,
+              deliveredTo: userId,
+            });
+          } catch {
+            // Ignore
+          }
+        }
+      }
+    });
+
+    socket.on("message_delivered", async (data: { conversationId: string }) => {
+      if (data?.conversationId && userId) {
+        try {
+          await prisma.chatMessage.updateMany({
+            where: {
+              conversationId: data.conversationId,
+              senderId: { not: userId },
+              isDelivered: false,
+            },
+            data: { isDelivered: true },
+          });
+          io?.to(`conversation_${data.conversationId}`).emit("MESSAGES_DELIVERED", {
+            conversationId: data.conversationId,
+            deliveredTo: userId,
+          });
+        } catch {
+          // Ignore
+        }
       }
     });
 

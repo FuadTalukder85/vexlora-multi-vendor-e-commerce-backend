@@ -2,7 +2,7 @@ import { deleteFileFromCloudinary } from "../../config/cloudinary.config";
 import { fromNodeHeaders } from "better-auth/node";
 import { IncomingHttpHeaders } from "http";
 import status from "http-status";
-import { Role, UserStatus } from "../../../generated/prisma/enums";
+import { PaymentStatus, Role, SubOrderStatus, UserStatus } from "../../../generated/prisma/enums";
 import { UserModel } from "../../../generated/prisma/models";
 import AppError from "../../errors/AppError";
 import { auth } from "../../lib/auth";
@@ -11,6 +11,115 @@ import { IQueryParams } from "../../types/query.types";
 import { QueryBuilder } from "../../utils/QueryBuilder";
 import { userFilterableFields, userSearchableFields } from "./user.constant";
 import { ICreateUserPayload, IUpdateMePayload, IUpdateUserPayload, IUpdateUserStatusPayload } from "./user.interface";
+
+const getCustomerDashboard = async (userId: string) => {
+  const [
+    user,
+    cartItemCountResult,
+    pendingOrdersCount,
+    totalOrdersCount,
+    totalSpentResult,
+    wishlistCount,
+    conversationsCount,
+    unreadConversations,
+    recentOrders,
+  ] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId, isDeleted: false },
+      include: {
+        addresses: {
+          orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
+        },
+      },
+    }),
+    prisma.cartItem.aggregate({
+      where: { userId, savedForLater: false },
+      _sum: { quantity: true },
+      _count: { id: true },
+    }),
+    prisma.order.count({
+      where: {
+        customerId: userId,
+        OR: [
+          { paymentStatus: PaymentStatus.PENDING },
+          {
+            subOrders: {
+              some: {
+                status: {
+                  in: [
+                    SubOrderStatus.PENDING,
+                    SubOrderStatus.CONFIRMED,
+                    SubOrderStatus.SHIPPED,
+                  ],
+                },
+              },
+            },
+          },
+        ],
+      },
+    }),
+    prisma.order.count({
+      where: { customerId: userId },
+    }),
+    prisma.order.aggregate({
+      where: {
+        customerId: userId,
+        paymentStatus: { in: [PaymentStatus.PAID, PaymentStatus.PENDING] },
+      },
+      _sum: { totalAmount: true },
+    }),
+    prisma.wishlist.count({
+      where: { userId },
+    }),
+    prisma.conversation.count({
+      where: { customerId: userId },
+    }),
+    prisma.conversation.aggregate({
+      where: { customerId: userId },
+      _sum: { unreadCountCustomer: true },
+    }),
+    prisma.order.findMany({
+      where: { customerId: userId },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      include: {
+        shippingAddress: true,
+        subOrders: {
+          include: {
+            vendor: {
+              select: {
+                id: true,
+                storeName: true,
+                storeSlug: true,
+                storeLogo: true,
+              },
+            },
+            items: true,
+          },
+        },
+      },
+    }),
+  ]);
+
+  if (!user) {
+    throw new AppError(status.NOT_FOUND, "User profile not found");
+  }
+
+  return {
+    user,
+    stats: {
+      cartItemsCount: cartItemCountResult._sum.quantity || 0,
+      cartUniqueProductsCount: cartItemCountResult._count.id || 0,
+      pendingOrdersCount,
+      totalOrdersCount,
+      totalSpent: Number(totalSpentResult._sum.totalAmount || 0),
+      wishlistCount,
+      conversationsCount,
+      unreadMessagesCount: unreadConversations._sum.unreadCountCustomer || 0,
+    },
+    recentOrders,
+  };
+};
 
 const getMe = async (userId: string) => {
   const user = await prisma.user.findUnique({
@@ -438,6 +547,7 @@ const revokeOtherSessions = async (userId: string, currentToken?: string) => {
 };
 
 export const UserService = {
+  getCustomerDashboard,
   getMe,
   updateMe,
   uploadAvatar,

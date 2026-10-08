@@ -58,7 +58,9 @@ const createCategory = async (payload: ICreateCategoryPayload) => {
 };
 
 const getAllCategories = async (queryParams: IQueryParams) => {
-  const categoryQuery = new QueryBuilder<CategoryModel>(prisma.category, queryParams, {
+  const { status: statusFilter, ...restParams } = queryParams;
+
+  const categoryQuery = new QueryBuilder<CategoryModel>(prisma.category, restParams, {
     searchableFields: categorySearchableFields,
     filterableFields: categoryFilterableFields,
   })
@@ -69,14 +71,43 @@ const getAllCategories = async (queryParams: IQueryParams) => {
     .include({
       parent: true,
       children: true,
+      _count: {
+        select: { products: true, children: true },
+      },
     });
+
+  // Handle status filter tabs: ALL, ACTIVE, ARCHIVE
+  if (statusFilter === "ACTIVE") {
+    categoryQuery.where({
+      isDeleted: false,
+      isActive: true,
+    });
+  } else if (statusFilter === "ARCHIVE" || statusFilter === "ARCHIVED") {
+    categoryQuery.where({
+      OR: [{ isDeleted: true }, { isActive: false }],
+    });
+  } else if (statusFilter === "ALL") {
+    // Return all categories (active and archived)
+  } else if (queryParams.isDeleted !== undefined) {
+    categoryQuery.where({
+      isDeleted: queryParams.isDeleted === "true" || queryParams.isDeleted === true,
+    });
+  } else {
+    // By default filter out soft-deleted categories
+    categoryQuery.where({
+      isDeleted: false,
+    });
+  }
 
   return await categoryQuery.execute();
 };
 
 const getCategoryTree = async () => {
   const categories = await prisma.category.findMany({
-    where: { isActive: true },
+    where: {
+      isDeleted: false,
+      isActive: true,
+    },
     orderBy: { name: "asc" },
   });
 
@@ -92,6 +123,8 @@ const getCategoryTree = async () => {
       image: cat.image,
       commissionOverride: cat.commissionOverride,
       isActive: cat.isActive,
+      isDeleted: cat.isDeleted,
+      deletedAt: cat.deletedAt,
       createdAt: cat.createdAt,
       updatedAt: cat.updatedAt,
       children: [],
@@ -129,8 +162,11 @@ const getCategoryById = async (id: string) => {
 };
 
 const getCategoryBySlug = async (slug: string) => {
-  const category = await prisma.category.findUnique({
-    where: { slug },
+  const category = await prisma.category.findFirst({
+    where: {
+      slug,
+      isDeleted: false,
+    },
     include: {
       parent: true,
       children: true,
@@ -180,6 +216,8 @@ const updateCategory = async (id: string, payload: IUpdateCategoryPayload) => {
     slug = newSlug;
   }
 
+  const isRestoring = payload.isDeleted === false || (payload.isActive === true && category.isDeleted);
+
   const updatedCategory = await prisma.category.update({
     where: { id },
     data: {
@@ -189,6 +227,14 @@ const updateCategory = async (id: string, payload: IUpdateCategoryPayload) => {
       ...(payload.image !== undefined && { image: payload.image }),
       ...(payload.commissionOverride !== undefined && { commissionOverride: payload.commissionOverride }),
       ...(payload.isActive !== undefined && { isActive: payload.isActive }),
+      ...(payload.isDeleted !== undefined && {
+        isDeleted: payload.isDeleted,
+        deletedAt: payload.isDeleted ? new Date() : null,
+      }),
+      ...(isRestoring && {
+        isDeleted: false,
+        deletedAt: null,
+      }),
     },
     include: {
       parent: true,
@@ -209,21 +255,21 @@ const deleteCategory = async (id: string) => {
     throw new AppError(status.NOT_FOUND, "Category not found");
   }
 
-  // Re-link children to parent category before deleting to prevent orphaned children
-  await prisma.$transaction(async (tx) => {
-    if (category.children.length > 0) {
-      await tx.category.updateMany({
-        where: { parentId: id },
-        data: { parentId: category.parentId },
-      });
-    }
-
-    await tx.category.delete({
-      where: { id },
-    });
+  // Soft delete category and mark as inactive
+  const softDeletedCategory = await prisma.category.update({
+    where: { id },
+    data: {
+      isDeleted: true,
+      deletedAt: new Date(),
+      isActive: false,
+    },
+    include: {
+      parent: true,
+      children: true,
+    },
   });
 
-  return category;
+  return softDeletedCategory;
 };
 
 export const CategoryService = {
@@ -235,3 +281,4 @@ export const CategoryService = {
   updateCategory,
   deleteCategory,
 };
+

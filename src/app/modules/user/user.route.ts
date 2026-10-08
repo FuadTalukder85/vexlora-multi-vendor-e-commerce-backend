@@ -9,8 +9,9 @@ import { multerUpload } from "../../config/multer.config";
 
 const router = Router();
 
-// Current authenticated user profile
+// Current authenticated user profile & customer dashboard
 router.get("/me", checkAuth(), UserController.getMe);
+router.get("/me/dashboard", checkAuth(), UserController.getCustomerDashboard);
 router.patch("/me", checkAuth(), validateRequest(UserValidation.updateMeSchema), UserController.updateMe);
 
 // User avatar management (Cloudinary via Multer)

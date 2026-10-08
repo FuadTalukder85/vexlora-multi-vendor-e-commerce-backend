@@ -38,24 +38,38 @@ const getOrCreateConversation = async (
     throw new AppError(status.BAD_REQUEST, "Vendors cannot start conversations with their own store");
   }
 
-  // Find existing conversation with matching customer, vendor, product, subOrder
+  // Find existing unified conversation between this customer and vendor
   const existing = await prisma.conversation.findFirst({
     where: {
       customerId,
       vendorId,
-      productId: payload.productId ?? null,
-      subOrderId: payload.subOrderId ?? null,
     },
     include: standardConversationInclude,
   });
 
   if (existing) {
+    if (payload.productId !== undefined || payload.subOrderId !== undefined) {
+      await prisma.conversation.update({
+        where: { id: existing.id },
+        data: {
+          productId: payload.productId ?? existing.productId,
+          subOrderId: payload.subOrderId ?? existing.subOrderId,
+        },
+      });
+    }
+
     if (payload.initialMessage) {
       await sendMessage(user, existing.id, {
         text: payload.initialMessage,
       });
     }
-    return existing;
+
+    const updated = await prisma.conversation.findUnique({
+      where: { id: existing.id },
+      include: standardConversationInclude,
+    });
+
+    return updated || existing;
   }
 
   // Create new conversation
@@ -65,8 +79,8 @@ const getOrCreateConversation = async (
       vendorId,
       productId: payload.productId ?? null,
       subOrderId: payload.subOrderId ?? null,
-      lastMessage: payload.initialMessage ?? "Conversation started",
-      lastMessageAt: new Date(),
+      lastMessage: payload.initialMessage ?? null,
+      lastMessageAt: payload.initialMessage ? new Date() : null,
     },
     include: standardConversationInclude,
   });
@@ -97,6 +111,48 @@ const getUserConversations = async (user: IRequestUser) => {
     orderBy: { updatedAt: "desc" },
     include: standardConversationInclude,
   });
+
+  // Automatically mark pending undelivered messages for this recipient as delivered
+  try {
+    const convIds = conversations.map((c) => c.id);
+    if (convIds.length > 0) {
+      const undelivered = await prisma.chatMessage.findMany({
+        where: {
+          conversationId: { in: convIds },
+          senderId: { not: user.userId },
+          isDelivered: false,
+        },
+        select: { conversationId: true },
+      });
+
+      if (undelivered.length > 0) {
+        await prisma.chatMessage.updateMany({
+          where: {
+            conversationId: { in: convIds },
+            senderId: { not: user.userId },
+            isDelivered: false,
+          },
+          data: { isDelivered: true },
+        });
+
+        const io = getIO();
+        const affectedConvIds = Array.from(new Set(undelivered.map((m) => m.conversationId)));
+        for (const cId of affectedConvIds) {
+          const payload = { conversationId: cId, deliveredTo: user.userId };
+          io.to(`conversation_${cId}`).emit("MESSAGES_DELIVERED", payload);
+          const c = conversations.find((x) => x.id === cId);
+          if (c) {
+            io.to(`user_${c.customerId}`).emit("MESSAGES_DELIVERED", payload);
+            if (c.vendor?.userId) {
+              io.to(`user_${c.vendor.userId}`).emit("MESSAGES_DELIVERED", payload);
+            }
+          }
+        }
+      }
+    }
+  } catch {
+    // Ignore background delivery sync error
+  }
 
   return conversations;
 };
@@ -194,6 +250,27 @@ const sendMessage = async (
   }
 
   const senderRole = isVendor ? Role.VENDOR : isCustomer ? Role.CUSTOMER : Role.ADMIN;
+  const isVendorSender = senderRole === Role.VENDOR;
+  let isDelivered = false;
+  try {
+    const io = getIO();
+    const recipientUserRoom = isVendorSender
+      ? `user_${conversation.customerId}`
+      : conversation.vendor?.userId
+        ? `user_${conversation.vendor.userId}`
+        : `vendor_${conversation.vendorId}`;
+    const recipientVendorRoom = isVendorSender
+      ? `user_${conversation.customerId}`
+      : `vendor_${conversation.vendorId}`;
+    const conversationRoom = `conversation_${conversationId}`;
+
+    isDelivered =
+      (io.sockets.adapter.rooms.get(recipientUserRoom)?.size ?? 0) > 0 ||
+      (io.sockets.adapter.rooms.get(recipientVendorRoom)?.size ?? 0) > 0 ||
+      (io.sockets.adapter.rooms.get(conversationRoom)?.size ?? 0) > 1;
+  } catch {
+    // Ignore
+  }
 
   const message = await prisma.chatMessage.create({
     data: {
@@ -202,19 +279,30 @@ const sendMessage = async (
       senderRole,
       text: payload.text,
       attachments: payload.attachments ?? [],
+      isDelivered,
+      isRead: false,
     },
     include: standardMessageInclude,
   });
 
-  // Update conversation last message & unread counters
-  const isVendorSender = senderRole === Role.VENDOR;
+  // When replying, automatically mark all unread messages from the other party as read
+  const readUpdated = await prisma.chatMessage.updateMany({
+    where: {
+      conversationId,
+      senderId: { not: user.userId },
+      isRead: false,
+    },
+    data: { isRead: true, isDelivered: true },
+  });
+
+  // Update conversation last message & reset sender's unread counter
   await prisma.conversation.update({
     where: { id: conversationId },
     data: {
       lastMessage: payload.text,
       lastMessageAt: new Date(),
-      unreadCountCustomer: isVendorSender ? { increment: 1 } : undefined,
-      unreadCountVendor: !isVendorSender ? { increment: 1 } : undefined,
+      unreadCountCustomer: isVendorSender ? { increment: 1 } : 0,
+      unreadCountVendor: !isVendorSender ? { increment: 1 } : 0,
     },
   });
 
@@ -225,6 +313,15 @@ const sendMessage = async (
       conversationId,
       message,
     };
+
+    // Broadcast that earlier messages were read by the replier ONLY if any existed
+    if (readUpdated.count > 0) {
+      io.to(`conversation_${conversationId}`).emit("MESSAGES_READ", { conversationId, readBy: user.userId });
+      io.to(`user_${conversation.customerId}`).emit("MESSAGES_READ", { conversationId, readBy: user.userId });
+      if (conversation.vendor?.userId) {
+        io.to(`user_${conversation.vendor.userId}`).emit("MESSAGES_READ", { conversationId, readBy: user.userId });
+      }
+    }
 
     // 1. To the conversation room
     io.to(`conversation_${conversationId}`).emit("NEW_CHAT_MESSAGE", eventPayload);
@@ -248,6 +345,34 @@ const sendMessage = async (
   }
 
   return message;
+};
+
+const markConversationAsDelivered = async (
+  user: IRequestUser,
+  conversationId: string,
+) => {
+  const updated = await prisma.chatMessage.updateMany({
+    where: {
+      conversationId,
+      senderId: { not: user.userId },
+      isDelivered: false,
+    },
+    data: { isDelivered: true },
+  });
+
+  if (updated.count > 0) {
+    try {
+      const io = getIO();
+      io.to(`conversation_${conversationId}`).emit("MESSAGES_DELIVERED", {
+        conversationId,
+        deliveredTo: user.userId,
+      });
+    } catch {
+      // Ignore
+    }
+  }
+
+  return { success: true };
 };
 
 const markConversationAsRead = async (
@@ -280,19 +405,26 @@ const markConversationAsRead = async (
   }
 
   // Mark all unread messages as read
-  await prisma.chatMessage.updateMany({
+  const updated = await prisma.chatMessage.updateMany({
     where: {
       conversationId,
       senderId: { not: user.userId },
       isRead: false,
     },
-    data: { isRead: true },
+    data: { isRead: true, isDelivered: true },
   });
 
+  // Always broadcast MESSAGES_READ to ensure real-time UI synchronization
   try {
     const io = getIO();
-    io.to(`conversation_${conversationId}`).emit("MESSAGES_READ", { conversationId, readBy: user.userId });
-  } catch (err) {
+    const eventPayload = { conversationId, readBy: user.userId };
+    io.to(`conversation_${conversationId}`).emit("MESSAGES_READ", eventPayload);
+    io.to(`user_${conversation.customerId}`).emit("MESSAGES_READ", eventPayload);
+    if (conversation.vendor?.userId) {
+      io.to(`user_${conversation.vendor.userId}`).emit("MESSAGES_READ", eventPayload);
+    }
+    io.to(`vendor_${conversation.vendorId}`).emit("MESSAGES_READ", eventPayload);
+  } catch {
     // Ignore socket error
   }
 
@@ -305,5 +437,6 @@ export const ChatService = {
   getConversationById,
   getMessages,
   sendMessage,
+  markConversationAsDelivered,
   markConversationAsRead,
 };
