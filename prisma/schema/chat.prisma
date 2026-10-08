@@ -17,7 +17,7 @@ model Conversation {
   subOrder SubOrder?     @relation("SubOrderConversations", fields: [subOrderId], references: [id], onDelete: SetNull)
   messages ChatMessage[]
 
-  @@unique([customerId, vendorId, productId, subOrderId])
+  @@unique([customerId, vendorId])
   @@index([customerId])
   @@index([vendorId])
   @@index([updatedAt(sort: Desc)])
@@ -31,6 +31,7 @@ model ChatMessage {
   senderRole     Role     @default(CUSTOMER)
   text           String
   attachments    String[] @default([])
+  isDelivered    Boolean  @default(false)
   isRead         Boolean  @default(false)
   createdAt      DateTime @default(now())
 
