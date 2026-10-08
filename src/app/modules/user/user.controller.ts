@@ -5,6 +5,17 @@ import { catchAsync } from "../../shared/catchAsync";
 import { sendResponse } from "../../shared/sendResponse";
 import { UserService } from "./user.service";
 
+const getCustomerDashboard = catchAsync(async (req: Request, res: Response) => {
+  const result = await UserService.getCustomerDashboard(req.user.userId);
+
+  sendResponse(res, {
+    statusCode: status.OK,
+    success: true,
+    message: "Customer dashboard data fetched successfully",
+    data: result,
+  });
+});
+
 const getMe = catchAsync(async (req: Request, res: Response) => {
   const result = await UserService.getMe(req.user.userId);
 
@@ -178,6 +189,7 @@ const revokeOtherSessions = catchAsync(async (req: Request, res: Response) => {
 });
 
 export const UserController = {
+  getCustomerDashboard,
   getMe,
   updateMe,
   uploadAvatar,
