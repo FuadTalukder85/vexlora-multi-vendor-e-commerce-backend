@@ -10,6 +10,7 @@ export const standardConversationInclude = {
   vendor: {
     select: {
       id: true,
+      userId: true,
       storeName: true,
       storeSlug: true,
       storeLogo: true,
